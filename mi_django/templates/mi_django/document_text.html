@@ -1,0 +1,28 @@
+{% extends 'mi_django/base.html' %}
+
+{% block title %}Текст документа{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h1 class="mb-4">Извлечённый текст</h1>
+
+    {% if texts %}
+        <div class="card mb-4">
+            <div class="card-body">
+                {% for text in texts %}
+                    <p>{{ text.text|linebreaksbr }}</p>
+                {% endfor %}
+            </div>
+        </div>
+    {% else %}
+        <div class="alert alert-warning" role="alert">
+            Текст не найден или анализ ещё не завершён.
+        </div>
+    {% endif %}
+
+    <!-- Кнопка для возврата к списку документов -->
+    <div class="d-flex flex-column">
+        <a href="{% url 'index' %}" class="btn btn-primary">Вернуться к списку документов</a>
+    </div>
+</div>
+{% endblock %}

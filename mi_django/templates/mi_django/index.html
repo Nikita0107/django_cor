@@ -1,0 +1,55 @@
+{% extends 'mi_django/base.html' %}
+
+{% block title %}Главная страница{% endblock %}
+
+{% block content %}
+<!-- Добавляем блок с кнопкой "Моя корзина" -->
+<div class="mb-4 d-flex justify-content-start">
+    <a href="{% url 'cart_list' %}" class="btn btn-secondary">Моя корзина</a>
+</div>
+
+<!-- Существующий блок для кнопки "Добавить картинку" -->
+<div class="mb-4">
+    <a href="{% url 'upload_document' %}" class="btn btn-success">Добавить картинку</a>
+</div>
+
+<h1 class="mb-4">Ваши документы</h1>
+
+{% if docs %}
+    <div class="row">
+        {% for doc in docs %}
+            <div class="col-md-4 mb-4">
+                <div class="card">
+                    <img src="{{ doc.file_path }}" class="card-img-top" alt="Image {{ doc.id }}">
+                    <div class="card-body">
+                        <h5 class="card-title">ID: {{ doc.id }}</h5>
+                        <p class="card-text"><strong>Размер:</strong> {{ doc.size }} KB</p>
+                        <!-- Кнопки для анализа и удаления -->
+                        <form action="{% url 'analyze_document' doc.id %}" method="post" style="display:inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-primary">Анализировать документ</button>
+                        </form>
+                        <a href="{% url 'order_analysis' doc.id %}" class="btn btn-primary">Заказать анализ</a>
+                        <a href="{% url 'get_document_text' doc.id %}" class="btn btn-info">Просмотреть текст</a>
+                        <form action="{% url 'delete_document' doc.id %}" method="post" style="display:inline;" onsubmit="return confirm('Вы уверены, что хотите удалить этот документ?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-danger">Удалить документ</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <p>У вас нет загруженных документов.</p>
+{% endif %}
+
+<!-- Добавляем кнопку "Выйти из аккаунта" ниже и выравниваем вправо -->
+<div class="mt-4 d-flex justify-content-end">
+    <form action="{% url 'logout' %}" method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">Выйти из аккаунта</button>
+    </form>
+</div>
+
+{% endblock %}

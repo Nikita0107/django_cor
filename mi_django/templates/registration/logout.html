@@ -1,0 +1,10 @@
+<!-- templates/registration/logout.html -->
+
+{% extends 'mi_django/base.html' %}
+
+{% block title %}Выход{% endblock %}
+
+{% block content %}
+<h2>Вы вышли из системы.</h2>
+<a href="{% url 'login' %}">Войти снова</a>
+{% endblock %}

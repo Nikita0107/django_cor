@@ -1,0 +1,27 @@
+{% extends 'mi_django/base.html' %}
+{% load static %}
+
+{% block title %}Загрузить документ{% endblock %}
+
+{% block content %}
+<h1>Загрузить документ</h1>
+
+{% if error_image %}
+    <!-- Отображаем изображение ошибки -->
+    <div class="alert alert-danger">
+        <img src="{% static 'mi_django/images/error.png' %}" alt="Ошибка" style="width: 100px; height: auto;">
+        <p>{{ error_message }}</p>
+    </div>
+{% endif %}
+
+<form action="" method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="form-group">
+        <label for="document">Выберите JPEG документ для загрузки:</label>
+        <input type="file" name="document" id="document" required class="form-control">
+    </div>
+    <button type="submit" class="btn btn-primary mt-3">Загрузить</button>
+</form>
+
+<a href="{% url 'index' %}" class="btn btn-secondary mt-3">Вернуться на главную страницу</a>
+{% endblock %}

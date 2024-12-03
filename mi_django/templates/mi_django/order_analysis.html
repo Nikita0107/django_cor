@@ -1,0 +1,17 @@
+{% extends 'mi_django/base.html' %}
+
+{% block title %}Заказать анализ{% endblock %}
+
+{% block content %}
+<h1>Заказать анализ документа</h1>
+
+<p>Документ: {{ document.file_path }}</p>
+<p>Размер: {{ document.size }} КБ</p>
+<p>Стоимость анализа: {{ order_price }} руб.</p>
+
+<form method="post">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-primary">Оплатить и получить доступ к анализу</button>
+    <a href="{% url 'index' %}" class="btn btn-secondary">Отмена</a>
+</form>
+{% endblock %}

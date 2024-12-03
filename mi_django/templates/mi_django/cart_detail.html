@@ -1,0 +1,24 @@
+{% extends 'mi_django/base.html' %}
+
+{% block title %}Детали заказа{% endblock %}
+
+{% block content %}
+<h1>Детали заказа</h1>
+
+<p><strong>Документ:</strong> {{ cart_item.doc.file_path }}</p>
+<p><strong>Размер:</strong> {{ cart_item.doc.size }} KB</p>
+<p><strong>Цена анализа:</strong> {{ cart_item.order_price }} руб</p>
+<p><strong>Статус оплаты:</strong> {% if cart_item.payment %}Оплачено{% else %}Не оплачено{% endif %}</p>
+
+<!-- You can add a payment button or link here -->
+{% if not cart_item.payment %}
+    <form action="{% url 'make_payment' cart_item.id %}" method="post">
+        {% csrf_token %}
+        <button type="submit">Оплатить</button>
+    </form>
+{% else %}
+    <p>Вы уже оплатили этот заказ. Спасибо!</p>
+{% endif %}
+
+<a href="{% url 'index' %}">Вернуться на главную страницу</a>
+{% endblock %}

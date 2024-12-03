@@ -1,0 +1,14 @@
+{% extends 'mi_django/base.html' %}
+
+{% block title %}Подтверждение анализа{% endblock %}
+
+{% block content %}
+<h1>Подтверждение анализа документа</h1>
+<p>Вы уверены, что хотите анализировать документ "{{ doc.file_path }}"?</p>
+
+<form method="post">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-primary">Да, начать анализ</button>
+    <a href="{% url 'index' %}" class="btn btn-secondary">Отмена</a>
+</form>
+{% endblock %}

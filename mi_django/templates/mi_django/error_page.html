@@ -1,0 +1,15 @@
+{% extends 'mi_django/base.html' %}
+{% load static %}
+
+{% block title %}Ошибка{% endblock %}
+
+{% block content %}
+<div class="alert alert-danger" role="alert">
+    <h4 class="alert-heading">Ошибка загрузки документа</h4>
+    <img src="{% static 'mi_django/images/error.png' %}" alt="Ошибка" style="width: 100px; height: auto;">
+    <p>{{ error_message }}</p>
+    <hr>
+    <p class="mb-0">Пожалуйста, вернитесь назад и выберите корректный файл.</p>
+</div>
+<a href="{% url 'upload_document' %}" class="btn btn-primary">Вернуться к загрузке</a>
+{% endblock %}

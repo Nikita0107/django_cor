@@ -1,0 +1,31 @@
+{% extends 'mi_django/base.html' %}
+
+{% block title %}Моя корзина{% endblock %}
+
+{% block content %}
+<h1>Моя корзина</h1>
+
+{% if cart_items %}
+    <ul class="list-group">
+        {% for cart_item in cart_items %}
+            <li class="list-group-item">
+                <a href="{% url 'cart_detail' cart_id=cart_item.id %}">
+                    Заказ №{{ cart_item.id }} - Документ: {{ cart_item.doc.id }}
+                </a>
+                - Статус оплаты: {% if cart_item.payment %}Оплачено{% else %}Не оплачено{% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+
+    <!-- Форма для очистки корзины -->
+    <form action="{% url 'clear_cart' %}" method="post" class="mt-3">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">Очистить корзину</button>
+    </form>
+
+{% else %}
+    <p>Ваша корзина пуста.</p>
+{% endif %}
+
+<a href="{% url 'index' %}" class="btn btn-primary mt-3">Вернуться на главную страницу</a>
+{% endblock %}

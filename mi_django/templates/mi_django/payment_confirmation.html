@@ -1,0 +1,16 @@
+{% extends 'mi_django/base.html' %}
+
+{% block title %}Подтверждение оплаты{% endblock %}
+
+{% block content %}
+<h1>Подтверждение оплаты</h1>
+
+<p>Вы уверены, что хотите оплатить анализ документа "{{ cart_item.doc.file_path }}" за {{ cart_item.order_price }} руб?</p>
+
+<form method="post">
+    {% csrf_token %}
+    <button type="submit">Подтвердить оплату</button>
+</form>
+
+<a href="{% url 'cart_detail' cart_item.id %}">Вернуться к деталям заказа</a>
+{% endblock %}
