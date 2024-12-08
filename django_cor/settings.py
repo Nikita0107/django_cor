@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/5.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
-import os
+
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -72,17 +72,28 @@ WSGI_APPLICATION = 'django_cor.wsgi.application'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 import os
+import sys  # Добавлено для проверки аргументов командной строки
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DATABASE_NAME', 'django_db'),
-        'USER': os.environ.get('DATABASE_USER', 'postgres'),
-        'PASSWORD': os.environ.get('DATABASE_PASSWORD', ''),
-        'HOST': os.environ.get('DATABASE_HOST', 'db_app2'),
-        'PORT': os.environ.get('DATABASE_PORT', '5432'),
+if 'test' in sys.argv or 'test_coverage' in sys.argv:
+    # Настройки базы данных для тестов
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': ':memory:',  # Использование базы данных в памяти для тестов
+        }
     }
-}
+else:
+    # Основные настройки базы данных
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('DATABASE_NAME', 'django_db'),
+            'USER': os.environ.get('DATABASE_USER', 'postgres'),
+            'PASSWORD': os.environ.get('DATABASE_PASSWORD', ''),
+            'HOST': os.environ.get('DATABASE_HOST', 'db_app2'),
+            'PORT': os.environ.get('DATABASE_PORT', '5432'),
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -131,8 +142,11 @@ LOGOUT_REDIRECT_URL = '/'             # URL после выхода
 # Дополнительные настройки
 DEFAULT_PRICE_PER_KB = 1.0  # Цена по умолчанию
 
-
-FASTAPI_BASE_URL = "http://fastapi_app:8000"  # Используйте имя контейнера FastAPI
+# Настройка URL для FastAPI
+if 'test' in sys.argv or 'test_coverage' in sys.argv:
+    FASTAPI_BASE_URL = "http://localhost:8000"  # При тестировании используем локальный адрес
+else:
+    FASTAPI_BASE_URL = "http://web:8000"  # Используйте имя контейнера FastAPI
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field

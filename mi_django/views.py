@@ -3,8 +3,8 @@ from django.views.decorators.http import require_POST
 import requests
 from django.shortcuts import render, redirect, get_object_or_404
 import os
+from django.core.files.storage import FileSystemStorage
 from django.conf import settings
-from PIL import Image, UnidentifiedImageError
 from django.contrib.auth import login, authenticate
 from .forms import UserRegisterForm
 from django.contrib.auth.decorators import login_required
@@ -15,7 +15,7 @@ def register(request):
     if request.method == 'POST':
         form = UserRegisterForm(request.POST)
         if form.is_valid():
-            user = form.save()
+            form.save()
             # Автоматически аутентифицируем пользователя после регистрации
             username = form.cleaned_data.get('username')
             password = form.cleaned_data.get('password1')
@@ -36,7 +36,6 @@ def index(request):
     docs = Doc.objects.filter(user=request.user)
     return render(request, 'mi_django/index.html', {'docs': docs})
 
-from django.core.files.storage import FileSystemStorage
 
 FASTAPI_BASE_URL = os.environ.get('FASTAPI_BASE_URL', 'http://web:8000')
 
@@ -50,60 +49,41 @@ def upload_document(request):
             messages.error(request, "Файл не выбран.")
             return redirect('upload_document')
 
-        # Проверяем, что файл имеет расширение .jpg или .jpeg
-        valid_extensions = ['.jpg', '.jpeg']
-        ext = os.path.splitext(document_file.name)[1].lower()
-        if ext not in valid_extensions:
-            error_message = "Ошибка: можно загружать только файлы формата JPEG."
-            return render(request, 'mi_django/error_page.html', {'error_message': error_message})
-
-        # Дополнительная проверка содержимого файла с помощью Pillow
-        try:
-            image = Image.open(document_file)
-            if image.format != 'JPEG':
-                raise ValueError("Загруженный файл не является JPEG-изображением.")
-        except (UnidentifiedImageError, ValueError) as e:
-            error_message = "Ошибка: файл не является корректным JPEG-изображением."
-            return render(request, 'mi_django/error_page.html', {'error_message': error_message})
-
-        # Сохранение файла локально
+        # Сохраняем файл локально
         fs = FileSystemStorage()
         filename = fs.save(document_file.name, document_file)
         local_file_path = f"{settings.MEDIA_URL}{filename}"
 
-        # Перемещаем указатель в начале файла после проверки
+        # Перемещаем указатель в начало файла перед отправкой
         document_file.seek(0)
 
         # Отправляем файл на FastAPI
-        response = requests.post(
-            f"{FASTAPI_BASE_URL}/upload_doc",
-            files={'file': (document_file.name, document_file.read(), document_file.content_type)}
-        )
-
-        if response.status_code == 200:
-            # Получаем данные из ответа FastAPI
-            data = response.json()
-            document_id = data.get('id')  # Это ID документа в базе данных FastAPI
-            document_name = data.get('name')  # Имя сохранённого файла на стороне FastAPI
-
-            # Сохраняем информацию о документе в базе данных Django
-            size = document_file.size / 1024  # Размер в КБ
-
-            doc = Doc.objects.create(
-                user=request.user,
-                file_path=local_file_path,  # Используем локальный путь
-                size=size,
-                fastapi_doc_id=document_id
+        try:
+            response = requests.post(
+                f"{FASTAPI_BASE_URL}/upload_doc",
+                files={'file': (document_file.name, document_file.read(), document_file.content_type)}
             )
-
-            messages.success(request, "Документ успешно загружен!")
-            return redirect('index')
-        else:
-            messages.error(request, f"Ошибка при загрузке документа: {response.text}")
+            response.raise_for_status()  # Проверяем статус ответа
+        except requests.RequestException as e:
+            messages.error(request, f"Ошибка при загрузке документа: {str(e)}")
             return redirect('upload_document')
 
-    return render(request, 'mi_django/upload_document.html')
+        # Получаем данные из ответа FastAPI
+        data = response.json()
+        document_id = data.get('id')  # ID документа в FastAPI
 
+        # Сохраняем информацию о документе в базе данных Django
+        Doc.objects.create(
+            user=request.user,
+            file_path=local_file_path,  # Локальный путь к файлу
+            size=document_file.size / 1024,  # Размер в КБ
+            fastapi_doc_id=document_id
+        )
+
+        messages.success(request, "Документ успешно загружен!")
+        return redirect('index')
+
+    return render(request, 'mi_django/upload_document.html')
 
 @login_required
 def get_document_text(request, doc_id):
@@ -118,8 +98,8 @@ def get_document_text(request, doc_id):
     if response.status_code == 200:
         data = response.json()
         texts = data.get('texts', [])
-        # Предполагая, что doc.file_path содержит путь к файлу для скачивания
-        file_path = doc.file_path  # Убедитесь, что это поле содержит корректный путь
+        # doc.file_path содержит путь к файлу
+        file_path = doc.file_path
         return render(request, 'mi_django/document_text.html', {'texts': texts, 'file_path': file_path})
     else:
         return HttpResponse(f"Ошибка при получении текста: {response.text}", status=500)
@@ -134,7 +114,7 @@ def delete_document(request, doc_id):
     file_path = os.path.join(settings.MEDIA_ROOT, os.path.basename(doc.file_path))
 
     # Отправляем запрос на удаление документа в FastAPI
-    response = requests.delete(f"{FASTAPI_BASE_URL}/doc_delete/{doc.fastapi_doc_id}")
+    requests.delete(f"{FASTAPI_BASE_URL}/doc_delete/{doc.fastapi_doc_id}")
 
     # Удаление файла из папки медиа
     if os.path.exists(file_path):
@@ -148,11 +128,13 @@ def delete_document(request, doc_id):
 
 DEFAULT_PRICE_PER_KB = getattr(settings, 'DEFAULT_PRICE_PER_KB', 1.0)
 
+# getattr() используется для получения значения атрибута объекта.
+# getattr(object, attribute_name, default_value)
 
 @login_required
-def order_analysis(request, doc_id):
+def order_analysis(request, doc_id): # заказ_анализ
     user = request.user
-    # Убедитесь, что документ принадлежит пользователю
+    # убедимся что документ принадлежит пользователю
     doc = get_object_or_404(Doc, id=doc_id, user=user)
 
     # Проверяем, не была ли уже произведена оплата
@@ -162,9 +144,8 @@ def order_analysis(request, doc_id):
         return redirect('index')
 
     # Извлекаем расширение файла из пути к файлу
-    file_extension = os.path.splitext(doc.file_path)[1][1:].lower()
-
-    # Получаем цену за КБ для этого типа файла или используем цену по умолчанию
+    file_extension = doc.file_path.split('.')[-1].lower()
+    # Получаем цену за КБ для этого файла
     try:
         price_entry = Price.objects.get(file_type=file_extension)
         price_per_kb = price_entry.price
@@ -176,9 +157,8 @@ def order_analysis(request, doc_id):
     order_price = doc.size * price_per_kb
 
     if request.method == 'POST':
-        # Обработка платежа (здесь необходимо интегрировать платежную систему)
-        # После успешной оплаты
 
+        # После успешной оплаты
         # Используем defaults для передачи обязательных полей при создании
         cart_item, created = Cart.objects.get_or_create(
             user=user,
@@ -200,12 +180,12 @@ def order_analysis(request, doc_id):
     return render(request, 'mi_django/order_analysis.html', {'document': doc, 'order_price': order_price})
 
 @login_required
-def cart_detail(request, cart_id):
+def cart_detail(request, cart_id): # детали корзины
     cart_item = get_object_or_404(Cart, id=cart_id, user=request.user)
     return render(request, 'mi_django/cart_detail.html', {'cart_item': cart_item})
 
 @login_required
-def make_payment(request, cart_id):
+def make_payment(request, cart_id): # произвести оплату
     cart_item = get_object_or_404(Cart, id=cart_id, user=request.user)
     if request.method == 'POST':
 
@@ -217,7 +197,7 @@ def make_payment(request, cart_id):
         return render(request, 'mi_django/payment_confirmation.html', {'cart_item': cart_item})
 
 @login_required
-def cart_list(request):
+def cart_list(request): # список в корзине
     cart_items = Cart.objects.filter(user=request.user)
     return render(request, 'mi_django/cart_list.html', {'cart_items': cart_items})
 
@@ -266,5 +246,6 @@ def analyze_document(request, doc_id):
 
         return redirect('index')
     else:
-        # Если GET запрос, можно показать страницу с подтверждением анализа
+        # можно показать страницу с подтверждением анализа
         return render(request, 'mi_django/confirm_analyze.html', {'doc': doc})
+

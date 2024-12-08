@@ -22,6 +22,7 @@ class CartAdmin(admin.ModelAdmin):
     list_filter = ('payment', 'user')
     ordering = ('-id',)
     readonly_fields = ('id',)
+
 # from .models import UsersToDocs
 
 # @admin.register(UsersToDocs)

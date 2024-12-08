@@ -3,6 +3,16 @@
 {% block title %}Главная страница{% endblock %}
 
 {% block content %}
+
+<!-- Вывод имени пользователя -->
+<div class="mb-4 d-flex justify-content-between align-items-center">
+    <h2>Привет, {{ request.user.username }}!</h2> <!-- Здесь выводится имя пользователя -->
+    <form action="{% url 'logout' %}" method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">Выйти из аккаунта</button>
+    </form>
+</div>
+
 <!-- Добавляем блок с кнопкой "Моя корзина" -->
 <div class="mb-4 d-flex justify-content-start">
     <a href="{% url 'cart_list' %}" class="btn btn-secondary">Моя корзина</a>
@@ -43,13 +53,5 @@
 {% else %}
     <p>У вас нет загруженных документов.</p>
 {% endif %}
-
-<!-- Добавляем кнопку "Выйти из аккаунта" ниже и выравниваем вправо -->
-<div class="mt-4 d-flex justify-content-end">
-    <form action="{% url 'logout' %}" method="post">
-        {% csrf_token %}
-        <button type="submit" class="btn btn-danger">Выйти из аккаунта</button>
-    </form>
-</div>
 
 {% endblock %}

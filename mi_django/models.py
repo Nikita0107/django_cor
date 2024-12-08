@@ -14,8 +14,8 @@ class Doc(models.Model):
         db_table = 'docs'
 
 class UsersToDocs(models.Model):
-    username = models.ForeignKey(User, on_delete=models.CASCADE)  # имя пользователя
-    docs_id = models.ForeignKey(Doc, on_delete=models.CASCADE)  # связь с таблицей Doc
+    username = models.ForeignKey(User, on_delete=models.CASCADE)
+    docs_id = models.ForeignKey(Doc, on_delete=models.CASCADE)
 
     def str(self):
         return f"User {self.username} - Doc {self.doc_id}"
@@ -34,10 +34,10 @@ class Price(models.Model):
         db_table = 'price'
 
 class Cart(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)  # связь с пользователем
-    doc = models.ForeignKey(Doc, on_delete=models.CASCADE)  # связь с таблицей Doc
-    order_price = models.FloatField()  # цена заказа
-    payment = models.BooleanField(default=False)  # статус оплаты
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    doc = models.ForeignKey(Doc, on_delete=models.CASCADE)
+    order_price = models.FloatField()
+    payment = models.BooleanField(default=False)
 
     def str(self):
         return f"Cart for User {self.user_id} - Doc {self.doc_id} - Paid: {self.payment}"
