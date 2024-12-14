@@ -1,4 +1,5 @@
 from django.http import HttpResponse
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 import requests
 from django.shortcuts import render, redirect, get_object_or_404
@@ -11,25 +12,54 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from .models import Doc, Cart, Price
 
+@csrf_exempt
 def register(request):
     if request.method == 'POST':
         form = UserRegisterForm(request.POST)
         if form.is_valid():
-            form.save()
-            # Автоматически аутентифицируем пользователя после регистрации
+            # Сохраняем пользователя локально
+            user = form.save()
+
+            # Получаем данные для аутентификации
             username = form.cleaned_data.get('username')
             password = form.cleaned_data.get('password1')
-            user = authenticate(username=username, password=password)
-            login(request, user)
-            messages.success(request, f"Регистрация прошла успешно! Вы вошли как {username}.")
-            return redirect('index')
+
+            # После успешной регистрации отправляем запрос на прокси-сервер
+            try:
+                # Отправляем запрос к RegisterOrLoginView на прокси-сервере
+                response = requests.post(
+                    f"{settings.PROXY_BASE_URL}/api/register/",
+                    json={'username': username, 'password': password},
+                    timeout=10  # Устанавливаем таймаут для запроса
+                )
+                response.raise_for_status()  # Проверяем, что запрос успешен
+
+                # Если запрос успешен, сохраняем токены в сессии
+                tokens = response.json()
+                request.session['access_token'] = tokens.get('access')
+                request.session['refresh_token'] = tokens.get('refresh')
+
+                # Сообщение об успешной регистрации
+                messages.success(request, f"Регистрация прошла успешно! Вы вошли как {username}.")
+                return redirect('index')
+
+            except requests.HTTPError as e:
+                # Обработка ошибок HTTP
+                messages.error(request, "Ошибка при взаимодействии с прокси-сервером. Попробуйте еще раз.")
+            except requests.ConnectionError:
+                # Обработка ошибок подключения
+                messages.error(request, "Не удалось подключиться к прокси-серверу. Проверьте соединение.")
+            except requests.Timeout:
+                # Обработка таймаута
+                messages.error(request, "Превышено время ожидания ответа от прокси-сервера.")
+
         else:
+            # Если форма невалидна, возвращаем ошибки
             messages.error(request, "Пожалуйста, исправьте ошибки в форме.")
     else:
         form = UserRegisterForm()
+
     return render(request, 'registration/register.html', {'form': form})
-
-
 
 @login_required
 def index(request):
@@ -184,6 +214,8 @@ def cart_detail(request, cart_id): # детали корзины
     cart_item = get_object_or_404(Cart, id=cart_id, user=request.user)
     return render(request, 'mi_django/cart_detail.html', {'cart_item': cart_item})
 
+# Если объект с указанными параметрами не найден, она автоматически возвращает ошибку HTTP 404 (страница "Не найдено").
+
 @login_required
 def make_payment(request, cart_id): # произвести оплату
     cart_item = get_object_or_404(Cart, id=cart_id, user=request.user)
@@ -246,6 +278,6 @@ def analyze_document(request, doc_id):
 
         return redirect('index')
     else:
-        # можно показать страницу с подтверждением анализа
+        # показать страницу с подтверждением анализа
         return render(request, 'mi_django/confirm_analyze.html', {'doc': doc})
 

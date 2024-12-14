@@ -24,6 +24,8 @@ SECRET_KEY = 'django-insecure-39^%wf)$9v-xck8rxos3db46$c7fp@c=_eq_)+y&8jfr=e)&k%
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+CSRF_TRUSTED_ORIGINS = ['http://*', 'https://*']
+
 ALLOWED_HOSTS = ['*']
 
 # Application definition
@@ -74,26 +76,38 @@ WSGI_APPLICATION = 'django_cor.wsgi.application'
 import os
 import sys  # Добавлено для проверки аргументов командной строки
 
-if 'test' in sys.argv or 'test_coverage' in sys.argv:
-    # Настройки базы данных для тестов
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': ':memory:',  # Использование базы данных в памяти для тестов
-        }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'django_db',           # Имя базы данных
+        'USER': 'postgres',            # Имя пользователя базы данных
+        'PASSWORD': '220689',  # Пароль пользователя
+        'HOST': 'db_app2',             # Имя хоста базы данных (имя Docker-сервиса)
+        'PORT': '5432',                # Порт подключения к PostgreSQL
     }
-else:
-    # Основные настройки базы данных
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.environ.get('DATABASE_NAME', 'django_db'),
-            'USER': os.environ.get('DATABASE_USER', 'postgres'),
-            'PASSWORD': os.environ.get('DATABASE_PASSWORD', ''),
-            'HOST': os.environ.get('DATABASE_HOST', 'db_app2'),
-            'PORT': os.environ.get('DATABASE_PORT', '5432'),
-        }
-    }
+}
+
+#
+# if 'test' in sys.argv or 'test_coverage' in sys.argv:
+#     # Настройки базы данных для тестов
+#     DATABASES = {
+#         'default': {
+#             'ENGINE': 'django.db.backends.sqlite3',
+#             'NAME': ':memory:',  # Использование базы данных в памяти для тестов
+#         }
+#     }
+# else:
+#     # Основные настройки базы данных
+#     DATABASES = {
+#         'default': {
+#             'ENGINE': 'django.db.backends.postgresql',
+#             'NAME': os.environ.get('DATABASE_NAME', 'django_db'),
+#             'USER': os.environ.get('DATABASE_USER', 'postgres'),
+#             'PASSWORD': os.environ.get('DATABASE_PASSWORD', ''),
+#             'HOST': os.environ.get('DATABASE_HOST', 'db_app2'),
+#             'PORT': os.environ.get('DATABASE_PORT', '5432'),
+#         }
+#     }
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -148,6 +162,8 @@ if 'test' in sys.argv or 'test_coverage' in sys.argv:
 else:
     FASTAPI_BASE_URL = "http://web:8000"  # Используйте имя контейнера FastAPI
 
+
+PROXY_BASE_URL = 'http://djangorest:8002'
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
