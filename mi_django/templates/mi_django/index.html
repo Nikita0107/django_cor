@@ -6,7 +6,7 @@
 
 <!-- Вывод имени пользователя -->
 <div class="mb-4 d-flex justify-content-between align-items-center">
-    <h2>Привет, {{ request.user.username }}!</h2> <!-- Здесь выводится имя пользователя -->
+    <h2>Привет, {{ request.user.username }}!</h2>
     <form action="{% url 'logout' %}" method="post">
         {% csrf_token %}
         <button type="submit" class="btn btn-danger">Выйти из аккаунта</button>
@@ -30,7 +30,12 @@
         {% for doc in docs %}
             <div class="col-md-4 mb-4">
                 <div class="card">
-                    <img src="{{ doc.file_path }}" class="card-img-top" alt="Image {{ doc.id }}">
+                    <!-- Используем локальный путь для изображения -->
+                    <img
+                        src="{{ MEDIA_URL }}{{ doc.file_path }}"
+                        class="card-img-top"
+                        alt="Image {{ doc.id }}"
+                    >
                     <div class="card-body">
                         <h5 class="card-title">ID: {{ doc.id }}</h5>
                         <p class="card-text"><strong>Размер:</strong> {{ doc.size }} KB</p>

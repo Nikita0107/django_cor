@@ -6,9 +6,10 @@ class Doc(models.Model):
     fastapi_doc_id = models.IntegerField(null=True)
     size = models.FloatField()
     file_path = models.CharField(max_length=255, default='')
+    fastapi_doc_url = models.URLField(null=True, blank=True)
 
     def __str__(self):
-        return f"Doc {self.id} - {self.file.name if self.file else 'No File'}"
+        return f"Doc {self.id} - {self.file_path if self.file_path else 'No File'}"
 
     class Meta:
         db_table = 'docs'
