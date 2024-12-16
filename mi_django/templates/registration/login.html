@@ -6,10 +6,27 @@
 
 {% block content %}
 <h2>Вход</h2>
-<form method="post">
+<form method="post" action="{% url 'login' %}">
     {% csrf_token %}
-    {{ form.as_p }}
+    <div class="form-group">
+        <label for="username">Имя пользователя</label>
+        <input type="text" class="form-control" id="username" name="username" placeholder="Введите имя пользователя" required>
+    </div>
+    <div class="form-group">
+        <label for="password">Пароль</label>
+        <input type="password" class="form-control" id="password" name="password" placeholder="Введите пароль" required>
+    </div>
     <button type="submit" class="btn btn-primary">Войти</button>
 </form>
+
 <p>Нет аккаунта? <a href="{% url 'register' %}">Регистрация</a></p>
+
+<!-- Вывод сообщений об ошибках -->
+{% if messages %}
+    <ul class="alert alert-danger">
+        {% for message in messages %}
+            <li>{{ message }}</li>
+        {% endfor %}
+    </ul>
+{% endif %}
 {% endblock %}

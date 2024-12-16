@@ -3,6 +3,7 @@ from . import views
 from django.contrib.auth import views as auth_views
 from django.conf import settings
 from django.conf.urls.static import static
+from .views import login_view
 
 urlpatterns = [
     path('', views.index, name='index'),
@@ -16,7 +17,7 @@ urlpatterns = [
     path('cart/<int:cart_id>/payment/', views.make_payment, name='make_payment'),
     path('cart/clear/', views.clear_cart, name='clear_cart'),
     path('register/', views.register, name='register'),
-    path('login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name='login'),
+    path('accounts/login/', login_view, name='login'),
     path('logout/', auth_views.LogoutView.as_view(template_name='registration/logout.html'), name='logout'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 

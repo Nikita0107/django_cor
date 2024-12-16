@@ -13,6 +13,11 @@ from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.views.decorators.csrf import csrf_exempt
 from .forms import UserRegisterForm
+from django.contrib.auth import authenticate, login
+from django.shortcuts import render, redirect
+from django.contrib import messages
+import requests
+from django.views.decorators.csrf import csrf_exempt
 
 # Создаём экземпляр логгера
 logger = logging.getLogger(__name__)
@@ -20,14 +25,17 @@ logger = logging.getLogger(__name__)
 
 @csrf_exempt
 def register(request):
+    """
+    Представление для регистрации нового пользователя.
+    """
     if request.method == 'POST':
         form = UserRegisterForm(request.POST)
         if form.is_valid():
-            # Получаем данные для аутентификации
+            # Получаем данные из формы
             username = form.cleaned_data.get('username')
             password = form.cleaned_data.get('password1')
 
-            # Отправляем запрос к прокси-серверу для регистрации
+            # Отправляем запрос на прокси-сервер для регистрации
             try:
                 response = requests.post(
                     f"{settings.PROXY_BASE_URL}/api/register/",
@@ -36,17 +44,9 @@ def register(request):
                 )
                 response.raise_for_status()
 
-                # Если регистрация на бекенде успешна, сохраняем пользователя локально
-                user = form.save()
-
-                # Сохраняем токены в сессии
-                tokens = response.json()
-                request.session['access_token'] = tokens.get('access')
-                request.session['refresh_token'] = tokens.get('refresh')
-
-                # Сообщение об успешной регистрации
-                messages.success(request, f"Регистрация прошла успешно! Вы вошли как {username}.")
-                return redirect('index')
+                # Если регистрация успешна
+                messages.success(request, f"Регистрация прошла успешно! Теперь вы можете войти.")
+                return redirect('login')  # Перенаправляем на страницу входа
 
             except requests.HTTPError as e:
                 messages.error(request, "Ошибка при регистрации на сервере. Попробуйте еще раз.")
@@ -60,7 +60,6 @@ def register(request):
             except Exception as e:
                 messages.error(request, "Произошла непредвиденная ошибка.")
                 logger.error(f"Unexpected error during registration: {e}")
-
         else:
             messages.error(request, "Пожалуйста, исправьте ошибки в форме.")
     else:
@@ -68,6 +67,80 @@ def register(request):
 
     return render(request, 'registration/register.html', {'form': form})
 
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from django.conf import settings
+from django.views.decorators.csrf import csrf_exempt
+import requests
+import logging
+from django.contrib.auth.forms import AuthenticationForm
+
+logger = logging.getLogger(__name__)
+
+
+from django.contrib.auth.models import User
+from django.contrib.auth import login
+import requests
+import logging
+
+logger = logging.getLogger(__name__)
+
+@csrf_exempt
+def login_view(request):
+    """
+    Кастомное представление для аутентификации пользователя через прокси-сервер.
+    """
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+
+        if not username or not password:
+            messages.error(request, "Имя пользователя и пароль обязательны.")
+            return render(request, 'registration/login.html')
+
+        try:
+            # Отправляем запрос на REST-сервер
+            response = requests.post(
+                f"{settings.PROXY_BASE_URL}/api/login/",
+                json={'username': username, 'password': password},
+                timeout=10
+            )
+            response.raise_for_status()  # Проверяем на ошибки HTTP
+
+            # Получаем токены
+            tokens = response.json()
+            access_token = tokens.get('access')
+            refresh_token = tokens.get('refresh')
+
+            if not access_token or not refresh_token:
+                messages.error(request, "Ошибка аутентификации. Токены не получены.")
+                return render(request, 'registration/login.html')
+
+            # Логируем токены (временно, только для отладки)
+            logger.debug(f"Access Token: {access_token}, Refresh Token: {refresh_token}")
+
+            # Проверяем, существует ли пользователь
+            user, created = User.objects.get_or_create(username=username)
+
+            # Устанавливаем пользовательскую сессию
+            login(request, user)
+
+            # Сохраняем токены в сессии
+            request.session['access_token'] = access_token
+            request.session['refresh_token'] = refresh_token
+
+            messages.success(request, f"Добро пожаловать, {username}!")
+            return redirect('index')
+
+        except requests.HTTPError as e:
+            messages.error(request, "Ошибка при аутентификации. Проверьте имя пользователя и пароль.")
+            logger.error(f"HTTPError during login: {e}")
+        except requests.RequestException as e:
+            messages.error(request, "Ошибка подключения к серверу.")
+            logger.error(f"RequestException during login: {e}")
+
+    # Если GET или ошибка POST, отобразить форму
+    return render(request, 'registration/login.html')
 
 @login_required
 def index(request):
@@ -79,6 +152,7 @@ FASTAPI_BASE_URL = os.environ.get('FASTAPI_BASE_URL', 'http://web:8000')
 
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
+
 from django.contrib import messages
 from django.conf import settings
 import requests
