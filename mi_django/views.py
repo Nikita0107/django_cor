@@ -2,32 +2,31 @@ from django.http import HttpResponse
 from django.views.decorators.http import require_POST
 from django.shortcuts import get_object_or_404
 import os
-from django.core.files.storage import FileSystemStorage
-from django.conf import settings
-from django.contrib.auth.decorators import login_required
-from django.contrib import messages
 from .models import Doc, Cart, Price
-import logging
-import requests
-from django.shortcuts import render, redirect
-from django.contrib import messages
-from django.views.decorators.csrf import csrf_exempt
 from .forms import UserRegisterForm
-from django.contrib.auth import authenticate, login
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
-from django.contrib import messages
-import requests
 from django.views.decorators.csrf import csrf_exempt
+import logging
+from django.contrib.auth.models import User
+from django.contrib.auth import login
+from django.contrib import messages
+from django.conf import settings
+import requests
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 
-# Создаём экземпляр логгера
+PROXY_BASE_URL = 'http://djangorest:8002'
+FASTAPI_BASE_URL = os.environ.get('FASTAPI_BASE_URL', 'http://web:8000')
+
 logger = logging.getLogger(__name__)
-
 
 @csrf_exempt
 def register(request):
     """
     Представление для регистрации нового пользователя.
     """
+    logger.debug(f"Вызвано представление регистрации. Метод запроса: {request.method}")
     if request.method == 'POST':
         form = UserRegisterForm(request.POST)
         if form.is_valid():
@@ -35,76 +34,72 @@ def register(request):
             username = form.cleaned_data.get('username')
             password = form.cleaned_data.get('password1')
 
+            logger.debug(f"Регистрация пользователя: {username}")
+
             # Отправляем запрос на прокси-сервер для регистрации
             try:
+                logger.debug(f"Отправка запроса на регистрацию пользователя {username} на прокси-сервер.")
                 response = requests.post(
                     f"{settings.PROXY_BASE_URL}/api/register/",
                     json={'username': username, 'password': password},
                     timeout=10
                 )
+                logger.debug(f"Получен ответ от прокси-сервера со статусом: {response.status_code}")
                 response.raise_for_status()
 
                 # Если регистрация успешна
+                logger.info(f"Пользователь {username} успешно зарегистрирован через прокси-сервер.")
                 messages.success(request, f"Регистрация прошла успешно! Теперь вы можете войти.")
                 return redirect('login')  # Перенаправляем на страницу входа
 
             except requests.HTTPError as e:
+                logger.error(f"HTTPError during registration for user {username}: {e}")
                 messages.error(request, "Ошибка при регистрации на сервере. Попробуйте еще раз.")
-                logger.error(f"HTTPError during registration: {e}")
             except requests.ConnectionError:
+                logger.error(f"ConnectionError during registration for user {username}.")
                 messages.error(request, "Не удалось подключиться к серверу. Проверьте соединение.")
-                logger.error("ConnectionError during registration.")
             except requests.Timeout:
+                logger.error(f"Timeout during registration for user {username}.")
                 messages.error(request, "Превышено время ожидания ответа от сервера.")
-                logger.error("Timeout during registration.")
             except Exception as e:
+                logger.error(f"Unexpected error during registration for user {username}: {e}")
                 messages.error(request, "Произошла непредвиденная ошибка.")
-                logger.error(f"Unexpected error during registration: {e}")
         else:
+            logger.warning(f"Форма регистрации невалидна: {form.errors}")
             messages.error(request, "Пожалуйста, исправьте ошибки в форме.")
     else:
         form = UserRegisterForm()
+        logger.debug("Отображение формы регистрации.")
 
     return render(request, 'registration/register.html', {'form': form})
 
-from django.shortcuts import render, redirect
-from django.contrib import messages
-from django.conf import settings
-from django.views.decorators.csrf import csrf_exempt
-import requests
-import logging
-from django.contrib.auth.forms import AuthenticationForm
-
-logger = logging.getLogger(__name__)
-
-
-from django.contrib.auth.models import User
-from django.contrib.auth import login
-import requests
-import logging
-
-logger = logging.getLogger(__name__)
 
 @csrf_exempt
 def login_view(request):
     """
     Кастомное представление для аутентификации пользователя через прокси-сервер.
     """
+    logger.debug(f"Вызвано представление входа. Метод запроса: {request.method}")
     if request.method == 'POST':
         username = request.POST.get('username')
         password = request.POST.get('password')
 
+        logger.debug(f"Попытка входа пользователя: {username}")
+
         if not username or not password:
+            logger.warning("Имя пользователя или пароль не предоставлены.")
             messages.error(request, "Имя пользователя и пароль обязательны.")
             return render(request, 'registration/login.html')
 
         try:
             # Отправляем запрос на REST-сервер
+            logger.debug(f"Отправка запроса на аутентификацию пользователя {username} на прокси-сервер.")
             response = requests.post(
                 f"{settings.PROXY_BASE_URL}/api/login/",
                 json={'username': username, 'password': password},
                 timeout=10
             )
+            logger.debug(f"Получен ответ от прокси-сервера со статусом: {response.status_code}")
             response.raise_for_status()  # Проверяем на ошибки HTTP
 
             # Получаем токены
@@ -113,108 +108,172 @@ def login_view(request):
             refresh_token = tokens.get('refresh')
 
             if not access_token or not refresh_token:
+                logger.error(f"Токены не получены для пользователя {username}. Ответ: {tokens}")
                 messages.error(request, "Ошибка аутентификации. Токены не получены.")
                 return render(request, 'registration/login.html')
 
             # Логируем токены (временно, только для отладки)
-            logger.debug(f"Access Token: {access_token}, Refresh Token: {refresh_token}")
+            logger.debug(f"Access Token для {username}: {access_token}")
+            logger.debug(f"Refresh Token для {username}: {refresh_token}")
 
             # Проверяем, существует ли пользователь
             user, created = User.objects.get_or_create(username=username)
+            if created:
+                logger.info(f"Создан новый пользователь {username} в базе данных Django.")
+            else:
+                logger.info(f"Пользователь {username} найден в базе данных Django.")
 
             # Устанавливаем пользовательскую сессию
             login(request, user)
+            logger.debug(f"Пользователь {username} вошел в систему.")
 
             # Сохраняем токены в сессии
             request.session['access_token'] = access_token
             request.session['refresh_token'] = refresh_token
+            logger.debug(f"Токены пользователя {username} сохранены в сессии.")
 
             messages.success(request, f"Добро пожаловать, {username}!")
             return redirect('index')
 
         except requests.HTTPError as e:
+            logger.error(f"HTTPError during login for user {username}: {e}")
             messages.error(request, "Ошибка при аутентификации. Проверьте имя пользователя и пароль.")
-            logger.error(f"HTTPError during login: {e}")
         except requests.RequestException as e:
+            logger.error(f"RequestException during login for user {username}: {e}")
             messages.error(request, "Ошибка подключения к серверу.")
-            logger.error(f"RequestException during login: {e}")
+
+    else:
+        logger.debug("Отображение формы входа.")
 
     # Если GET или ошибка POST, отобразить форму
     return render(request, 'registration/login.html')
 
+
 @login_required
 def index(request):
+    logger.debug(f"Вызвано представление index пользователем: {request.user.username}")
     docs = Doc.objects.filter(user=request.user)
+    logger.debug(f"Найдено {docs.count()} документов для пользователя {request.user.username}.")
     return render(request, 'mi_django/index.html', {'docs': docs})
 
-PROXY_BASE_URL = 'http://djangorest:8002'
-FASTAPI_BASE_URL = os.environ.get('FASTAPI_BASE_URL', 'http://web:8000')
-
-from django.shortcuts import render, redirect
-from django.contrib.auth.decorators import login_required
-
-from django.contrib import messages
-from django.conf import settings
-import requests
-import logging
-
-logger = logging.getLogger(__name__)
-
-from django.core.files.base import ContentFile
-from django.core.files.storage import default_storage
 
 @login_required
 def upload_document(request):
+    logger.debug(f"Вызвано представление загрузки документа пользователем: {request.user.username}")
     if request.method == "POST":
+        logger.debug("Получен POST-запрос на загрузку документа.")
         # Получаем файл из формы
         file = request.FILES.get("document")
 
         if not file:
-            logger.warning("Файл для загрузки не выбран.")
+            logger.warning("Файл для загрузки не выбран пользователем.")
             messages.error(request, "Файл не выбран.")
             return redirect('upload_document')
 
+        logger.debug(f"Получен файл: {file.name} размером {file.size} байт.")
+
         # Сохраняем файл локально
-        file_path = default_storage.save(file.name, ContentFile(file.read()))  # Сохраняем файл
-        full_file_path = os.path.join(settings.MEDIA_ROOT, file_path)  # Полный путь к файлу
-        size_kb = file.size / 1024
-
-        logger.info(f"Документ сохранён: Тип файла: {file.content_type}, Путь: {file_path}, Размер (КБ): {size_kb}")
-
-        # Получаем токен из сессии
-        access_token = request.session.get('access_token')
-        if not access_token:
-            logger.error("Ошибка аутентификации: токен отсутствует в сессии.")
-            messages.error(request, "Ошибка аутентификации: токен не найден.")
+        try:
+            file_path = default_storage.save(file.name, ContentFile(file.read()))
+            full_file_path = os.path.join(settings.MEDIA_ROOT, file_path)
+            size_kb = file.size / 1024
+            logger.info(f"Файл {file.name} сохранён на сервере по пути {full_file_path}. Размер: {size_kb} КБ.")
+        except Exception as e:
+            logger.error(f"Ошибка при сохранении файла {file.name}: {e}")
+            messages.error(request, "Ошибка при сохранении файла.")
             return redirect('upload_document')
 
-        logger.info("Токен успешно извлечён из сессии.")
+        # Получаем токены из сессии
+        access_token = request.session.get('access_token')
+        refresh_token = request.session.get('refresh_token')
+
+        if not access_token or not refresh_token:
+            logger.error("Ошибка аутентификации: токены отсутствуют в сессии.")
+            messages.error(request, "Ошибка аутентификации: необходимо войти в систему.")
+            return redirect('login')
+
+        logger.debug("Токены успешно извлечены из сессии.")
 
         # Формируем заголовки с токеном
         headers = {
             'Authorization': f'Bearer {access_token}'
         }
 
-        try:
+        def make_upload_request():
             # Отправляем файл на сервер
             logger.info(f"Отправка файла {file.name} на прокси-сервер...")
             with open(full_file_path, 'rb') as f:
-                response = requests.post(
-                    f"{settings.PROXY_BASE_URL}/api/upload_doc/",
-                    files={'file': (file.name, f, file.content_type)},
-                    headers=headers,
-                    timeout=10
-                )
-                response.raise_for_status()  # Проверяем, что статус ответа 2xx
+                try:
+                    response = requests.post(
+                        f"{settings.PROXY_BASE_URL}/api/upload_doc/",
+                        files={'file': (file.name, f, file.content_type)},
+                        headers=headers,
+                        timeout=10
+                    )
+                    logger.debug(f"Получен ответ от прокси-сервера со статусом: {response.status_code}")
+                    return response
+                except Exception as e:
+                    logger.error(f"Ошибка при отправке файла {file.name} на прокси-сервер: {e}")
+                    raise
+
+        try:
+            response = make_upload_request()
+            # Проверяем статус ответа
+            if response.status_code == 401:
+                logger.warning("Токен доступа истёк. Пытаемся обновить токен.")
+                # Попытаемся обновить токен
+                try:
+                    refresh_response = requests.post(
+                        f"{settings.PROXY_BASE_URL}/api/token/refresh/",
+                        data={'refresh': refresh_token},
+                        timeout=10
+                    )
+                    logger.debug(f"Получен ответ от прокси-сервера при обновлении токена со статусом: {refresh_response.status_code}")
+
+                    if refresh_response.status_code == 200:
+                        new_tokens = refresh_response.json()
+                        access_token = new_tokens.get('access')
+                        if not access_token:
+                            logger.error("Не удалось получить новый токен доступа при обновлении.")
+                            messages.error(request, "Ошибка аутентификации. Пожалуйста, войдите снова.")
+                            return redirect('login')
+
+                        # Обновляем токен в сессии
+                        request.session['access_token'] = access_token
+                        headers['Authorization'] = f'Bearer {access_token}'
+
+                        logger.info("Токен доступа успешно обновлён.")
+
+                        # Повторяем запрос загрузки файла с новым токеном
+                        response = make_upload_request()
+                        response.raise_for_status()
+                    else:
+                        # Не удалось обновить токен
+                        logger.error("Не удалось обновить токен доступа. Статус ответа: {refresh_response.status_code}")
+                        messages.error(request, "Сессия истекла. Пожалуйста, войдите снова.")
+                        return redirect('login')
+
+                except Exception as e:
+                    logger.error(f"Ошибка при обновлении токена доступа: {e}")
+                    messages.error(request, "Ошибка при обновлении токена. Пожалуйста, войдите снова.")
+                    return redirect('login')
+            else:
+                # Если статус не 401, проверяем на другие ошибки
+                response.raise_for_status()
 
         except requests.RequestException as e:
             logger.error(f"Ошибка при загрузке документа на сервер: {e}")
             messages.error(request, f"Ошибка при загрузке документа: {str(e)}")
             return redirect('upload_document')
+        except Exception as e:
+            logger.error(f"Непредвиденная ошибка при загрузке документа: {e}")
+            messages.error(request, "Произошла ошибка при загрузке документа.")
+            return redirect('upload_document')
 
         # Обрабатываем успешный ответ
         try:
             data = response.json()
+            logger.debug(f"Ответ от сервера при загрузке документа: {data}")
             document_id = data.get('id')  # ID документа в FastAPI
             document_url = data.get('url')  # URL изображения от FastAPI
         except ValueError:
@@ -223,16 +282,25 @@ def upload_document(request):
             return redirect('upload_document')
 
         # Сохраняем информацию о документе в базе данных Django
-        Doc.objects.create(
-            user=request.user,
-            file_path=file_path,  # Путь к локальному файлу
-            size=size_kb,  # Размер в КБ
-            fastapi_doc_id=document_id,
-        )
+        try:
+            Doc.objects.create(
+                user=request.user,
+                file_path=file_path,  # Путь к локальному файлу
+                size=size_kb,  # Размер в КБ
+                fastapi_doc_id=document_id,
+            )
+            logger.info(f"Документ {file.name} успешно сохранён в базе данных.")
+        except Exception as e:
+            logger.error(f"Ошибка при сохранении информации о документе в базе данных: {e}")
+            messages.error(request, "Ошибка при сохранении данных документа.")
+            return redirect('upload_document')
 
         logger.info(f"Документ {file.name} успешно загружен. ID документа: {document_id}, URL: {document_url}")
         messages.success(request, "Документ успешно загружен!")
         return redirect('index')
+
+    else:
+        logger.debug("Отображение формы загрузки документа.")
 
     # Если GET-запрос, отображаем форму загрузки
     return render(request, 'mi_django/upload_document.html')
@@ -402,4 +470,3 @@ def analyze_document(request, doc_id):
     else:
         # показать страницу с подтверждением анализа
         return render(request, 'mi_django/confirm_analyze.html', {'doc': doc})
-
